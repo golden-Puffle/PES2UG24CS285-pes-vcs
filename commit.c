@@ -194,8 +194,23 @@ int head_update(const ObjectID *new_commit) {
 //
 // Returns 0 on success, -1 on error.
 int commit_create(const char *message, ObjectID *commit_id_out) {
-    // TODO: Implement commit creation
-    // Plan: build tree → read parent → fill Commit struct → serialize → write → update HEAD
+    Commit c;
+    memset(&c, 0, sizeof(c));
+
+    // Step 1: Build tree from index
+    if (tree_from_index(&c.tree) != 0) {
+        fprintf(stderr, "error: nothing to commit (empty index)\n");
+        return -1;
+    }
+
+    // Step 2: Read parent commit from HEAD (may not exist for first commit)
+    if (head_read(&c.parent) == 0) {
+        c.has_parent = 1;
+    } else {
+        c.has_parent = 0;
+    }
+
+    // TODO: fill author, timestamp, message (next commit)
     (void)message; (void)commit_id_out;
     return -1;
 }
