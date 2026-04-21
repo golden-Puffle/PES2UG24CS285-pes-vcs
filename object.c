@@ -119,9 +119,34 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
         return 0;
     }
 
-    // TODO: write to disk (coming next)
+    // Step 4: Create shard directory
+    char path[512], tmppath[512];
+    object_path(id_out, path, sizeof(path));
+    char shard_dir[64];
+    char hex[HASH_HEX_SIZE + 1];
+    hash_to_hex(id_out, hex);
+    snprintf(shard_dir, sizeof(shard_dir), "%s/%.2s", OBJECTS_DIR, hex);
+    mkdir(shard_dir, 0755);
+
+    // Step 5: Write to temp file
+    snprintf(tmppath, sizeof(tmppath), "%s/tmp_XXXXXX", shard_dir);
+    int fd = mkstemp(tmppath);
+    if (fd < 0) { free(full); return -1; }
+    write(fd, full, full_len);
+
+    // Step 6: fsync temp file
+    fsync(fd);
+    close(fd);
+
+    // Step 7: Atomic rename
+    rename(tmppath, path);
+
+    // Step 8: fsync the shard directory
+    int dir_fd = open(shard_dir, O_RDONLY);
+    if (dir_fd >= 0) { fsync(dir_fd); close(dir_fd); }
+
     free(full);
-    return -1;
+    return 0;
 }
 }
 
