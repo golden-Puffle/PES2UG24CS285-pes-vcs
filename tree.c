@@ -137,22 +137,20 @@ static int write_tree_level(IndexEntry *entries, int count, int depth, ObjectID 
 
     int i = 0;
     while (i < count) {
-        // Get the path component at current depth
         const char *path = entries[i].path;
-        
-        // Skip 'depth' slashes to get to current level
+
+        // Navigate to current depth
         const char *p = path;
         for (int d = 0; d < depth; d++) {
             p = strchr(p, '/');
             if (!p) return -1;
-            p++; // skip the '/'
+            p++;
         }
 
-        // Check if this entry has a subdirectory at this level
         const char *slash = strchr(p, '/');
 
         if (!slash) {
-            // It's a plain file at this level — add directly
+            // Plain file
             TreeEntry *e = &tree.entries[tree.count++];
             strncpy(e->name, p, sizeof(e->name) - 1);
             e->name[sizeof(e->name)-1] = '\0';
@@ -160,12 +158,48 @@ static int write_tree_level(IndexEntry *entries, int count, int depth, ObjectID 
             e->hash = entries[i].hash;
             i++;
         } else {
-            // TODO: handle subdirectory (next commit)
-            i++;
+            // Subdirectory — get its name
+            char dir_name[256];
+            size_t dir_len = slash - p;
+            if (dir_len >= sizeof(dir_name)) return -1;
+            strncpy(dir_name, p, dir_len);
+            dir_name[dir_len] = '\0';
+
+            // Collect all entries belonging to this subdir
+            int j = i;
+            while (j < count) {
+                const char *pp = entries[j].path;
+                for (int d = 0; d < depth; d++) {
+                    pp = strchr(pp, '/');
+                    if (!pp) break;
+                    pp++;
+                }
+                char this_dir[256];
+                const char *s = strchr(pp, '/');
+                if (!s) break;
+                size_t l = s - pp;
+                if (l >= sizeof(this_dir)) break;
+                strncpy(this_dir, pp, l);
+                this_dir[l] = '\0';
+                if (strcmp(this_dir, dir_name) != 0) break;
+                j++;
+            }
+
+            // Recurse into subdirectory
+            ObjectID sub_id;
+            if (write_tree_level(entries + i, j - i, depth + 1, &sub_id) != 0)
+                return -1;
+
+            TreeEntry *e = &tree.entries[tree.count++];
+            strncpy(e->name, dir_name, sizeof(e->name) - 1);
+            e->name[sizeof(e->name)-1] = '\0';
+            e->mode = MODE_DIR;
+            e->hash = sub_id;
+
+            i = j;
         }
     }
 
-    // Serialize and write tree object
     void *data;
     size_t len;
     if (tree_serialize(&tree, &data, &len) != 0) return -1;
@@ -173,7 +207,6 @@ static int write_tree_level(IndexEntry *entries, int count, int depth, ObjectID 
     free(data);
     return ret;
 }
-
 int tree_from_index(ObjectID *id_out) {
     Index idx;
     if (index_load(&idx) != 0) return -1;
