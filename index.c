@@ -152,8 +152,8 @@ int index_load(Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_save(const Index *index) {
-    // TODO: Implement atomic index saving
-    // (See Lab Appendix for logical steps)
+    // TODO: Implement index loading
+    // Plan: open .pes/index, parse each line: mode hash mtime size path
     (void)index;
     return -1;
 }
