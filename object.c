@@ -110,9 +110,17 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     full[header_len] = '\0';
     memcpy(full + header_len + 1, data, len);
 
-    // TODO: hash, dedup, write (coming next)
+    // Step 2: Compute hash
+    compute_hash(full, full_len, id_out);
+
+    // Step 3: Deduplication
+    if (object_exists(id_out)) {
+        free(full);
+        return 0;
+    }
+
+    // TODO: write to disk (coming next)
     free(full);
-    (void)id_out;
     return -1;
 }
 }
