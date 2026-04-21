@@ -132,9 +132,46 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 // Recursive helper: builds a tree from a slice of index entries
 // All entries must share the same prefix (depth level)
 static int write_tree_level(IndexEntry *entries, int count, int depth, ObjectID *id_out) {
-    // TODO: implement in next commit
-    (void)entries; (void)count; (void)depth; (void)id_out;
-    return -1;
+    Tree tree;
+    tree.count = 0;
+
+    int i = 0;
+    while (i < count) {
+        // Get the path component at current depth
+        const char *path = entries[i].path;
+        
+        // Skip 'depth' slashes to get to current level
+        const char *p = path;
+        for (int d = 0; d < depth; d++) {
+            p = strchr(p, '/');
+            if (!p) return -1;
+            p++; // skip the '/'
+        }
+
+        // Check if this entry has a subdirectory at this level
+        const char *slash = strchr(p, '/');
+
+        if (!slash) {
+            // It's a plain file at this level — add directly
+            TreeEntry *e = &tree.entries[tree.count++];
+            strncpy(e->name, p, sizeof(e->name) - 1);
+            e->name[sizeof(e->name)-1] = '\0';
+            e->mode = entries[i].mode;
+            e->hash = entries[i].hash;
+            i++;
+        } else {
+            // TODO: handle subdirectory (next commit)
+            i++;
+        }
+    }
+
+    // Serialize and write tree object
+    void *data;
+    size_t len;
+    if (tree_serialize(&tree, &data, &len) != 0) return -1;
+    int ret = object_write(OBJ_TREE, data, len, id_out);
+    free(data);
+    return ret;
 }
 
 int tree_from_index(ObjectID *id_out) {
