@@ -203,14 +203,19 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
         return -1;
     }
 
-    // Step 2: Read parent commit from HEAD (may not exist for first commit)
+    // Step 2: Read parent commit from HEAD
     if (head_read(&c.parent) == 0) {
         c.has_parent = 1;
     } else {
         c.has_parent = 0;
     }
 
-    // TODO: fill author, timestamp, message (next commit)
-    (void)message; (void)commit_id_out;
+    // Step 3: Fill author, timestamp, message
+    snprintf(c.author, sizeof(c.author), "%s", pes_author());
+    c.timestamp = (uint64_t)time(NULL);
+    snprintf(c.message, sizeof(c.message), "%s", message);
+
+    // TODO: serialize and write (next commit)
+    (void)commit_id_out;
     return -1;
 }
