@@ -142,7 +142,7 @@ int index_load(Index *index) {
     char hex[HASH_HEX_SIZE + 1];
     while (index->count < MAX_INDEX_ENTRIES) {
         IndexEntry *e = &index->entries[index->count];
-        int ret = fscanf(f, "%o %64s %lu %lu %255s",
+        int ret = fscanf(f, "%o %64s %lu %u %255s",
                          &e->mode,
                          hex,
                          &e->mtime_sec,
@@ -172,8 +172,11 @@ static int compare_index_entries(const void *a, const void *b) {
 
 int index_save(const Index *index) {
     // Sort entries by path
-    Index sorted = *index;
-    qsort(sorted.entries, sorted.count, sizeof(IndexEntry), compare_index_entries);
+    // Sort entries by path - use heap to avoid stack overflow
+    Index *sorted = malloc(sizeof(Index));
+    if (!sorted) return -1;
+    *sorted = *index;
+    qsort(sorted->entries, sorted->count, sizeof(IndexEntry), compare_index_entries);
 
     // Write to temp file
     char tmppath[] = ".pes/index_tmp_XXXXXX";
@@ -183,16 +186,17 @@ int index_save(const Index *index) {
     if (!f) { close(fd); return -1; }
 
     char hex[HASH_HEX_SIZE + 1];
-    for (int i = 0; i < sorted.count; i++) {
-        const IndexEntry *e = &sorted.entries[i];
+    for (int i = 0; i < sorted->count; i++) {
+        const IndexEntry *e = &sorted->entries[i];
         hash_to_hex(&e->hash, hex);
-        fprintf(f, "%o %s %lu %lu %s\n",
+        fprintf(f, "%o %s %lu %u %s\n",
                 e->mode, hex, e->mtime_sec, e->size, e->path);
     }
 
     fflush(f);
     fsync(fileno(f));
     fclose(f);
+    free(sorted);
 
     // Atomic rename
     if (rename(tmppath, INDEX_FILE) != 0) return -1;
